@@ -24,19 +24,27 @@ public_users.post('/register', (req, res) => {
 });
 
 // Get the book list available in the shop
-public_users.get('/', function (req, res) {
-  //Write your code here
+public_users.get('/', async function (req, res) {
   return res.status(200).json({ books });
 });
 
 // Get book details based on ISBN
-public_users.get('/isbn/:isbn', function (req, res) {
+public_users.get('/isbn/:isbn', async function (req, res) {
   //Write your code here
-  if (books[req.params.isbn]) {
-    const filterBook = books[req.params.isbn];
-    return res.status(200).json({ [req.params.isbn]: filterBook });
-  } else {
-    return res.status(401).json({ message: 'Book not found' });
+  const isbn = req.params.isbn;
+
+  try {
+    const filterPromise = await new Promise((resolve, reject) => {
+      const book = books[isbn];
+      if (book) {
+        resolve({ [isbn]: book });
+      } else {
+        reject(new Error('Book not found'));
+      }
+    });
+    return res.status(200).json(filterPromise);
+  } catch (err) {
+    return res.status(401).json({ message: err.message });
   }
 });
 
@@ -56,39 +64,48 @@ public_users.get('/author/:author', async function (req, res) {
       }
     }
     if (filterBook.length === 0) {
-      throw new Error('Book not found');
+      reject(new Error('Book not found'));
     } else {
-      resolve(filterBook);
+      resolve({ booksByAuthor: filterBook });
     }
-  })
-    .then((filterBook) => {
-      if (filterBook)
-        return res.status(200).json({ booksByAuthor: filterBook });
+  });
+  filterPromise
+    .then((book) => {
+      return res.status(200).json(book);
     })
-    .catch((err) => {
-      return res.status(401).json({ message: err.message });
+    .catch((e) => {
+      return res.status(401).json({ message: e.message });
     });
 });
 
 // Get all books based on title
-public_users.get('/title/:title', function (req, res) {
+public_users.get('/title/:title', async function (req, res) {
   //Write your code here
   const title = req.params.title;
   let filterBook = [];
-  for (key in books) {
-    if (books[key]['title'] === title) {
-      filterBook.push({
-        isbn: key,
-        author: books[key]['author'],
-        reviews: books[key]['reviews'],
-      });
+  const filterPromise = new Promise((resolve, reject) => {
+    for (key in books) {
+      if (books[key]['title'] === title) {
+        filterBook.push({
+          isbn: key,
+          author: books[key]['author'],
+          reviews: books[key]['reviews'],
+        });
+      }
     }
-  }
-  if (filterBook.length > 0) {
-    return res.status(200).json({ 'Books by title': filterBook });
-  } else {
-    return res.status(401).json({ message: 'Book not found' });
-  }
+    if (filterBook.length > 0) {
+      resolve({ 'Books by title': filterBook });
+    } else {
+      reject(new Error('Book not found'));
+    }
+  });
+  filterPromise
+    .then((book) => {
+      return res.status(200).json(book);
+    })
+    .catch((e) => {
+      return res.status(401).json({ message: e.message });
+    });
 });
 
 //  Get book review
